@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Timers;
 using System.Data;
 using System.Collections.Generic;
 using System.Linq;
@@ -17,6 +18,8 @@ namespace BlahblahCommunicator
 {
     class Program
     {
+        private static bool shouldUpdate = false;
+
         static void Main(string[] args)
         {
             bool done = false;
@@ -207,6 +210,9 @@ namespace BlahblahCommunicator
                                             ConsoleKeyInfo pressedKey;
                                             bool endChat = false;
                                             startChat = false;
+
+                                            SetTimer();
+
                                             while (!endChat)
                                             {
                                                 if (Console.KeyAvailable)
@@ -231,24 +237,29 @@ namespace BlahblahCommunicator
                                                         command = new MySqlCommand(sql, connection);
                                                         command.ExecuteNonQuery();
                                                         message = "";
+                                                        shouldUpdate = true;
                                                     }
                                                     else
                                                         message += pressedKey.KeyChar;
                                                     refresh = true;
 
                                                 }
-                                                sql = $"SELECT username, content FROM messages INNER JOIN users ON users.id = writer_id" +
-                                                        $" WHERE (writer_id = {user.Id} AND receiver_id = {partnerId}) OR (writer_id = {partnerId} AND receiver_id = {user.Id})" +
-                                                        "ORDER BY messages.created_at DESC";
-                                                command = new MySqlCommand(sql, connection);
-                                                rdr = command.ExecuteReader();
-                                                for (int i = numberOfMessages - 1; i >= 0 && rdr.Read(); i--)
+                                                if (shouldUpdate)
                                                 {
-                                                    if (conversation[i] != rdr[0].ToString() + ": " + rdr[1])
-                                                        refresh = true;
-                                                    conversation[i] = rdr[0].ToString() + ": " + rdr[1];
+                                                    sql = $"SELECT username, content FROM messages INNER JOIN users ON users.id = writer_id" +
+                                                            $" WHERE (writer_id = {user.Id} AND receiver_id = {partnerId}) OR (writer_id = {partnerId} AND receiver_id = {user.Id})" +
+                                                            "ORDER BY messages.created_at DESC";
+                                                    command = new MySqlCommand(sql, connection);
+                                                    rdr = command.ExecuteReader();
+                                                    for (int i = numberOfMessages - 1; i >= 0 && rdr.Read(); i--)
+                                                    {
+                                                        if (conversation[i] != rdr[0].ToString() + ": " + rdr[1])
+                                                            refresh = true;
+                                                        conversation[i] = rdr[0].ToString() + ": " + rdr[1];
+                                                    }
+                                                    rdr.Close();
+                                                    shouldUpdate = false;
                                                 }
-                                                rdr.Close();
                                                 if (refresh)
                                                 {
                                                     Console.Clear();
@@ -258,11 +269,12 @@ namespace BlahblahCommunicator
                                                         Console.WriteLine(conversation[i]);
                                                     }
                                                     Console.Write(message);
-
                                                     refresh = false;
                                                 }
 
                                             }
+                                            aTimer.Stop();
+                                            aTimer.Dispose();
                                             Console.Clear();
                                         }
                                         break;
@@ -325,6 +337,23 @@ namespace BlahblahCommunicator
             connection.Close();
             Console.WriteLine("Done.");
             Console.ReadKey();
+        }
+
+        // TIMER
+
+        private static System.Timers.Timer aTimer;
+        private static void SetTimer()
+        {
+            // Create a timer with a one second interval.
+            aTimer = new System.Timers.Timer(1000);
+            // Hook up the Elapsed event for the timer. 
+            aTimer.Elapsed += OnTimedEvent;
+            aTimer.AutoReset = true;
+            aTimer.Enabled = true;
+        }
+        private static void OnTimedEvent(Object source, ElapsedEventArgs e)
+        {
+            shouldUpdate = true;
         }
         //static UserInfo SignUp()
         //{
